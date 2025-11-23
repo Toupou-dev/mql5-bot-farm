@@ -1,17 +1,16 @@
+# 1. On ignore TOUT à la racine (Images, Include, Logs, etc.)
+*
+
+# 2. On doit autoriser le dossier "Experts" pour pouvoir entrer dedans
 !Experts/
 
-!.gitignore
-
+# 3. Une fois dans Experts, on ignore tout le reste (Advisors, Examples...)
 Experts/*
 
+# 4. On force l'exception pour TON dossier (en précisant le chemin complet !)
 !Experts/mql5-bot-farm/
+!Experts/mql5-bot-farm/**
 
-*.ex5
-*.ex4
-*.dat
-
-.vscode/
-.git/
-
-*.log
-*.csv
+# 5. On garde les fichiers vitaux à la racine
+!.gitignore
+!README.md
