@@ -1,0 +1,17 @@
+!Experts/
+
+!.gitignore
+
+Experts/*
+
+!Experts/mql5-bot-farm/
+
+*.ex5
+*.ex4
+*.dat
+
+.vscode/
+.git/
+
+*.log
+*.csv
