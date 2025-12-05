@@ -47,7 +47,7 @@ public:
    void Init(CStrategyBase* strategy, int magic, double risk, double maxDailyDD, double maxTotalDD, 
              string startT, string endT, string forceCloseT,
              double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective,bool enableForceClose,
-             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints) // <--- Added DebugMode
+             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints)
    { 
       // Set Global Logger Debug Mode
       CLogger::SetDebugMode(debugMode);
