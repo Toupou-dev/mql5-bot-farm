@@ -7,8 +7,6 @@ Experts/*
 !Experts/mql5-bot-farm/
 !Experts/mql5-bot-farm/**
 *.ex5
-*.ex4
-*.dat
 
 !.gitignore
 !README.md
