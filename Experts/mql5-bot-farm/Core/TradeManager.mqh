@@ -156,5 +156,21 @@ public:
 
       return false; // No winning trade found today
    }
+   //+------------------------------------------------------------------+
+   //| NEW: Check if spread is acceptable                               |
+   //+------------------------------------------------------------------+
+   bool IsSpreadSafe(int maxSpreadPoints)
+   {
+      // Récupère le spread actuel en points (ex: 15)
+      long currentSpread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+
+      // Si le spread actuel dépasse la limite
+      if (currentSpread > maxSpreadPoints)
+      {
+         CLogger::Debug("Spread too high! Current: " + IntegerToString(currentSpread) + " > Max: " + IntegerToString(maxSpreadPoints));
+         return false; // DANGER
+      }
+
+      return true; // SAFE
+   }
 };
-;

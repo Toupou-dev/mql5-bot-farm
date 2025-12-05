@@ -32,6 +32,7 @@ private:
    double m_trailingStart;    // Start trailing when profit > X points
    double m_trailingDist;     // Keep SL at X points distance
    double m_trailingStep;     // Update SL every X points
+   int m_maxSpreadPoints;     // Max allowed spread in points
 
 public:
    CEngine() {}
@@ -47,7 +48,7 @@ public:
    void Init(CStrategyBase* strategy, int magic, double risk, double maxDailyDD, double maxTotalDD, 
              string startT, string endT, string forceCloseT,
              double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective,bool enableForceClose,
-             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints)
+             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints, int maxSpread)
    { 
       // Set Global Logger Debug Mode
       CLogger::SetDebugMode(debugMode);
@@ -68,6 +69,8 @@ public:
       m_stopOnObjective = stopOnObjective;
 
       m_enableForceClose = enableForceClose;
+
+      m_maxSpreadPoints = maxSpread;
       
       m_useTrailing   = useTrailing;
       m_trailingStart = trailStartPoints * Point();
@@ -96,6 +99,10 @@ public:
       if(m_isClosedForDay && !IsForceCloseTime()) {
          CLogger::Log("New Day Detected. Resetting Close Flag.");
          m_isClosedForDay = false;
+      }
+
+      if(!m_tradeMgr.IsSpreadSafe(m_maxSpreadPoints) ) {
+         return;
       }
    
       // 2. STRATEGY UPDATE
