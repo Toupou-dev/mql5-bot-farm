@@ -26,10 +26,16 @@ public:
       int currentMinutes = (dt.hour * 60) + dt.min;
       
       // Logic:
-      // >= Start : Inclusive (Trading starts exactly at HH:MM)
-      // < End    : Exclusive (Trading stops at the exact minute of End Time)
-      if(currentMinutes >= m_startMinutes && currentMinutes < m_endMinutes) {
-         return true;
+      // Case 1: Day Session (ex: 07:00 -> 19:00)
+      // Start is less than End
+      if(m_startMinutes < m_endMinutes) {
+         if(currentMinutes >= m_startMinutes && currentMinutes < m_endMinutes) return true;
+      }
+      
+      //Case 2: Night Session (ex: 20:00 -> 06:00)
+      // Start is greater than End
+      else {
+         if(currentMinutes >= m_startMinutes || currentMinutes < m_endMinutes) return true;
       }
       
       return false;
