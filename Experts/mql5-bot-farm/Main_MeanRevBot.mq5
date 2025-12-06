@@ -12,44 +12,44 @@
 
 //--- INPUTS: GLOBAL RISK SETTINGS
 input group    "--- GLOBAL RISK SETTINGS ---"
-input double   Inp_RiskPercent     = 1.0;      // Risk per trade
-input double   Inp_MaxDailyLoss    = 4.5;      // Daily Loss Limit
-input double   Inp_MaxTotalDD      = 9.5;      // Total Loss Limit
-input bool     Inp_StopOnObjective = false;    // FALSE for Range trading (we want multiple trades)
+input double   Inp_RiskPercent     = 1.0;      // Risk per Trade (% of Account Balance)
+input double   Inp_MaxDailyLoss    = 4.5;      // Max Daily Drawdown Limit (%)
+input double   Inp_MaxTotalDD      = 9.5;      // Max Total Drawdown Limit (%)
+input bool     Inp_StopOnObjective = false;    // Stop Trading after Daily Win? (True/False)
 
 //--- INPUTS: STRATEGY INDICATORS
 input group    "--- STRATEGY INDICATORS ---"
-input int      Inp_MagicNumber     = 6060;     // Unique ID (Must be different from GoldBot)
-input int      Inp_BB_Period       = 20;       // Bollinger Period
-input double   Inp_BB_Deviation    = 2.5;      // Deviation (2.0 to 3.0)
-input int      Inp_RSI_Period      = 14;       // RSI Period
-input int      Inp_RSI_Overbought  = 70;       // Sell Level
-input int      Inp_RSI_Oversold    = 30;       // Buy Level
+input int      Inp_MagicNumber     = 6060;     // EA Unique ID (Magic Number)
+input int      Inp_BB_Period       = 20;       // Bollinger Bands: Period
+input double   Inp_BB_Deviation    = 2.5;      // Bollinger Bands: Standard Deviation
+input int      Inp_RSI_Period      = 14;       // RSI: Period
+input int      Inp_RSI_Overbought  = 70;       // RSI: Overbought Threshold (Sell Level)
+input int      Inp_RSI_Oversold    = 30;       // RSI: Oversold Threshold (Buy Level)
 
 //--- INPUTS: STRATEGY FINE TUNING
 input group    "--- STRATEGY FINE TUNING ---"
-input int      Inp_ATR_Period      = 14;       // ATR Period
-input double   Inp_ATR_Multiplier  = 2.0;      // SL Distance (Needs to be wide for Mean Rev)
-input double   Inp_RiskRewardRatio = 1.0;      // TP Ratio (1:1 is common for Range)
-input int      Inp_Min_SL_Points   = 100;      // Min SL (10 pips for Forex)
+input int      Inp_ATR_Period      = 14;       // ATR: Period (Volatility Calc)
+input double   Inp_ATR_Multiplier  = 2.0;      // Stop Loss Distance (Multiplier x ATR)
+input double   Inp_RiskRewardRatio = 1.0;      // Take Profit Ratio (Multiple of SL Distance)
+input int      Inp_Min_SL_Points   = 100;      // Minimum Stop Loss Distance (Points)
 
 //--- INPUTS: TIME FILTERS
 input group    "--- TIME FILTERS ---"
-input string   Inp_StartTime       = "01:00";  // Asian Session is great for Range!
-input string   Inp_EndTime         = "20:00";  // Stop before US close volatility
-input bool     Inp_EnableHardClose = false;    // Range trades can last overnight
-input string   Inp_ForceCloseTime  = "23:00";  // Not used if above is false
+input string   Inp_StartTime       = "01:00";  // Trading Start Time (HH:MM)
+input string   Inp_EndTime         = "20:00";  // New Entry Cut-off Time (HH:MM)
+input bool     Inp_EnableHardClose = false;    // Enable Force Close at End Time?
+input string   Inp_ForceCloseTime  = "23:00";  // Force Close Execution Time (HH:MM)
 
 //--- INPUTS: MANAGEMENT
 input group    "--- MANAGEMENT ---"
-input double   Inp_BE_Trigger_RR   = 0.5;      // Secure quickly
-input int      Inp_BE_Offset_Points= 5;        // Cover spread (0.5 pips)
-input bool     Inp_UseTrailing     = false;    // Usually false for strict Mean Rev
-input int      Inp_Trail_Start     = 0;
-input int      Inp_Trail_Dist      = 0;
-input int      Inp_Trail_Step      = 0;
-input int      Inp_MaxSpreadPoints = 30;       // Max Spread (3 pips)
-input bool     Inp_DebugMode       = false;
+input double   Inp_BE_Trigger_RR   = 0.5;      // Breakeven Trigger (Risk Ratio, e.g. 0.5R)
+input int      Inp_BE_Offset_Points= 5;        // Breakeven Offset (Points added to Entry)
+input bool     Inp_UseTrailing     = false;    // Enable Trailing Stop?
+input int      Inp_Trail_Start     = 0;        // Trailing: Activation Profit (Points)
+input int      Inp_Trail_Dist      = 0;        // Trailing: Distance from Price (Points)
+input int      Inp_Trail_Step      = 0;        // Trailing: Modification Step (Points)
+input int      Inp_MaxSpreadPoints = 30;       // Max Allowed Spread (Points)
+input bool     Inp_DebugMode       = false;    // Enable Debug Logs in Journal?
 
 //--- GLOBAL OBJECTS
 CEngine engine;
