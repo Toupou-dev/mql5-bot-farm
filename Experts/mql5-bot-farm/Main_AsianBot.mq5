@@ -4,66 +4,75 @@
 //+------------------------------------------------------------------+
 #property copyright "Expert MQL5"
 #property version   "1.00"
-#include "Core/Engine.mqh"
-#include "Strategies/Strategy_AsianBreakout.mqh"
 
-//--- INPUTS
+//--- INCLUDES
+#include "Core/Engine.mqh"
+#include "Strategies/Strategy_TimeBreakout.mqh" 
 
 //--- INPUTS: GLOBAL RISK SETTINGS
 input group    "--- GLOBAL RISK SETTINGS ---"
-input double   Inp_MaxDailyDD      = 1;      // Max Daily Loss (%)
+input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
+input double   Inp_MaxDailyDD      = 1;      // Max Daily Loss (%) 
 input double   Inp_MaxTotalDD      = 9.5;      // Max Total Drawdown (%)
 input bool     Inp_StopOnObjective = true;     // Stop trading after a Win (TP) or BE?
 
-//--- INPUTS: STRATEGY SETTINGS
-input group    "--- STRATEGY SETTINGS ---"
+//--- INPUTS: STRATEGY SETTINGS (BOX)
+input group    "--- STRATEGY BOX TIME ---"
 input int      Inp_MagicNumber     = 7070;     // Magic Number
-input int      Inp_AsianStartHour  = 1;        // Box Start (01:00)
-input int      Inp_AsianEndHour    = 8;        // Box End (08:00 - Just before London)
+input int      Inp_BoxStart_Hour   = 1;        // Box Start Hour (01:00)
+input int      Inp_BoxStart_Min    = 0;        // Box Start Minute (00)
+input int      Inp_BoxEnd_Hour     = 8;        // Box End Hour (08:00)
+input int      Inp_BoxEnd_Min      = 0;        // Box End Minute (00)
 input int      Inp_TrendMA         = 200;      // Trend Filter
 
-//--- INPUTS: RISK
-input group    "--- RISK ---"
-input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
+//--- INPUTS: FINE TUNING
+input group    "--- FINE TUNING ---"
 input double   Inp_ATR_Multiplier  = 1.5;      // SL multiplier based on ATR
 input double   Inp_RR_Ratio        = 2.0;      // RR Ratio
 input int      Inp_Offset_Points   = 20;       // Breakout Confirmation (2 pips)
 input int      Inp_Min_SL_Points   = 100;      // Minimum SL pips
-input int      Inp_MaxSpreadPoints = 30;       // Max Spread allowed (points)
 
 //--- INPUTS: TIME EXECUTION
 input group    "--- EXECUTION WINDOW ---"
-input string   Inp_StartTime      = "09:00";  // Start entering after
-input string   Inp_EndTime        = "12:00";  // Stop entering after
-input bool     Inp_EnableHardClose       = true;     // Force close all trades
-input string   Inp_ForceCloseTime      = "21:30";  // Close before night
+input string   Inp_StartTime       = "09:00";  // Start entering trades after this time
+input string   Inp_EndTime         = "12:00";  // Stop entering trades after this time
+input bool     Inp_EnableHardClose = true;     // Force close all trades at night?
+input string   Inp_ForceCloseTime  = "21:30";  // Hard Close Time
 
 //--- INPUTS: BREAKEVEN SETTINGS
 input group    "--- BREAKEVEN SETTINGS ---"
-input double   Inp_BE_Trigger_RR   = 1.0;      // Move to BE when profit = Risk * X (e.g. 1.0)
-input int      Inp_BE_Offset_Points= 10;       // Points to add to BE (cover fees)
+input double   Inp_BE_Trigger_RR   = 1.0;      // Move to BE when profit = Risk * X
+input int      Inp_BE_Offset_Points= 10;       // Points to add to BE
 
 //--- INPUTS: TRAILING STOP SETTINGS
 input group    "--- TRAILING STOP ---"
-input bool     Inp_UseTrailing     = false;    // Set TRUE for Swing
-input int      Inp_Trail_Start     = 500;      // Start after X points profit
-input int      Inp_Trail_Dist      = 300;      // Keep SL X points behind
-input int      Inp_Trail_Step      = 50;       // Move every X points
+input bool     Inp_UseTrailing     = false;    // False for DayTrading
+input int      Inp_Trail_Start     = 500;      
+input int      Inp_Trail_Dist      = 300;      
+input int      Inp_Trail_Step      = 50;       
 
 //--- INPUTS: MISC SETTINGS
-input group    "--- DEBUGGING ---"
-input bool     Inp_DebugMode       = true;     // Enable detailed logs in Journal
+input group    "--- MISC ---"
+input int      Inp_MaxSpreadPoints = 30;       // Max Spread allowed
+input bool     Inp_DebugMode       = true;     // Enable logs
 
 CEngine engine;
 
 int OnInit() {
-   CStrategyBase* strategy = new CStrategyAsianBreakout(
+   //--- 1. Create Strategy Instance
+   CStrategyBase* strategy = new CStrategyTimeBreakout(
       _Symbol, Period(), 
-      Inp_AsianStartHour, Inp_AsianEndHour, Inp_Offset_Points,
-      Inp_TrendMA, 14, Inp_ATR_Multiplier, Inp_RR_Ratio, Inp_Min_SL_Points
+      Inp_BoxStart_Hour, Inp_BoxStart_Min, // Début Boîte
+      Inp_BoxEnd_Hour,   Inp_BoxEnd_Min,   // Fin Boîte
+      Inp_Offset_Points,
+      Inp_TrendMA, 
+      14, // ATR fix period
+      Inp_ATR_Multiplier, 
+      Inp_RR_Ratio, 
+      Inp_Min_SL_Points
    );
    
-//--- 2. Initialize Engine
+   //--- 2. Init engine
    engine.Init(strategy, 
                Inp_MagicNumber, 
                Inp_RiskPercent, 
@@ -84,30 +93,20 @@ int OnInit() {
                Inp_MaxSpreadPoints 
             );
    
-   //--- 3. Set Daily Timer
+   //--- 3. Timer for daily reset
    EventSetTimer(60);
    
-   Print("[INFO] Breakeven Logic Active. Trigger at R:", DoubleToString(Inp_BE_Trigger_RR, 1));
    return(INIT_SUCCEEDED);
 }
 
-//+------------------------------------------------------------------+
-//| Expert tick function                                             |
-//+------------------------------------------------------------------+
 void OnTick() {
    engine.OnTick();
 }
 
-//+------------------------------------------------------------------+
-//| Expert timer function                                            |
-//+------------------------------------------------------------------+
 void OnTimer() {
    engine.OnTimer();
 }
 
-//+------------------------------------------------------------------+
-//| Expert deinitialization function                                 |
-//+------------------------------------------------------------------+
 void OnDeinit(const int reason) {
    EventKillTimer();
 }
