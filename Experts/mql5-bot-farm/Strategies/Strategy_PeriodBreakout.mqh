@@ -1,10 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                      Strategy_GoldBreakout.mqh   |
-//|                                      Copyright 2025, Expert MQL5 |
+//|                                      Strategy_PeriodBreakout.mqh |
+//|                                      Copyright 2026, Expert MQL5 |
+//| Description: Donchian Channel / High-Low Breakout Strategy       |
 //+------------------------------------------------------------------+
 #include "StrategyBase.mqh"
+#include "../Utils/Logger.mqh"
 
-class CStrategyGoldBreakout : public CStrategyBase {
+class CStrategyPeriodBreakout  : public CStrategyBase {
 private:
    //--- Parameters
    int      m_breakoutPeriod;
@@ -32,7 +34,7 @@ public:
    //+------------------------------------------------------------------+
    //| Constructor: Updated with new inputs                             |
    //+------------------------------------------------------------------+
-   CStrategyGoldBreakout(string symbol, int period, 
+   CStrategyPeriodBreakout(string symbol, int period, 
                          int breakPer, int atrPer, double atrMult, 
                          double rrRatio, double offsetPoints, int minSLPoints,  int trendMaPeriod) 
       : CStrategyBase(symbol, period) {
