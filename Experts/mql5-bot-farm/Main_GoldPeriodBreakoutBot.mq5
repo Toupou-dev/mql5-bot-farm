@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                                 Main_GoldBot.mq5 |
+//|                                   Main_GoldPeriodBreakoutBot.mq5 |
 //|                                      Copyright 2025, Expert MQL5 |
 //| Description: Launcher for the Gold Breakout Strategy             |
 //+------------------------------------------------------------------+
@@ -8,7 +8,7 @@
 
 //--- INCLUDES
 #include "Core/Engine.mqh"
-#include "Strategies/Strategy_GoldBreakout.mqh"
+#include "Strategies/Strategy_PeriodBreakout.mqh"
 
 //--- INPUTS: GLOBAL RISK SETTINGS
 input group    "--- GLOBAL RISK SETTINGS ---"
@@ -49,6 +49,7 @@ input int      Inp_Trail_Dist      = 300;      // Keep SL X points behind
 input int      Inp_Trail_Step      = 50;       // Move every X points
 
 input group    "--- DEBUGGING ---"
+input int      Inp_MaxSpreadPoints = 30;     // Max Spread allowed (Points)
 input bool     Inp_DebugMode       = true;     // Enable detailed logs in Journal
 
 
@@ -61,7 +62,7 @@ CEngine engine;
 //+------------------------------------------------------------------+
 int OnInit() {
    //--- 1. Create Strategy Instance
-   CStrategyBase* strategy = new CStrategyGoldBreakout(
+   CStrategyBase* strategy = new CStrategyPeriodBreakout (
       _Symbol, 
       Period(), 
       Inp_BreakoutPeriod, 
@@ -90,7 +91,8 @@ int OnInit() {
                Inp_UseTrailing,
                Inp_Trail_Start,
                Inp_Trail_Dist,
-               Inp_Trail_Step 
+               Inp_Trail_Step,
+               Inp_MaxSpreadPoints 
             );
    
    //--- 3. Set Daily Timer
