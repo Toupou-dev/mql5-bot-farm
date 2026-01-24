@@ -88,7 +88,7 @@ int OnInit() {
                Inp_MaxSpreadPoints 
             );
    
-   EventSetTimer(60);
+   EventSetTimer(86400);
    return(INIT_SUCCEEDED);
 }
 

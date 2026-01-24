@@ -96,7 +96,7 @@ int OnInit() {
             );
    
    //--- 3. Set Daily Timer
-   EventSetTimer(60);
+   EventSetTimer(86400);
    
    Print("[INFO] Breakeven Logic Active. Trigger at R:", DoubleToString(Inp_BE_Trigger_RR, 1));
    return(INIT_SUCCEEDED);
