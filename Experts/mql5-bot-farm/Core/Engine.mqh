@@ -104,10 +104,19 @@ public:
       if(!m_tradeMgr.IsSpreadSafe(m_maxSpreadPoints) ) {
          return;
       }
-   
+
       // 2. STRATEGY UPDATE
       m_strategy.OnTickStrategy();
-      if(!m_guardian.IsSafeToTrade()) return;
+      if (!m_guardian.IsSafeToTrade())
+      {
+         if (PositionsTotal() > 0)
+         {
+            CLogger::Log("DAILY DD REACHED. EMERGENCY CLOSING.");
+            m_tradeMgr.CloseAllPositions();
+            m_tradeMgr.DeleteAllPendingOrders();
+         }
+         return;
+      }
       ManageBreakeven();
       if(m_useTrailing) ManageTrailing();
 
