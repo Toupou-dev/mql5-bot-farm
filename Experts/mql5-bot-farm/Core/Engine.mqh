@@ -45,6 +45,12 @@ public:
       if(CheckPointer(m_strategy)   == POINTER_DYNAMIC) delete m_strategy;
    }
 
+   // Function moved to public to allow launcher access
+   void OnTimer() {
+      if(CheckPointer(m_guardian) != POINTER_INVALID)
+         m_guardian.UpdateDailyBalance();
+   }
+
    void Init(CStrategyBase* strategy, int magic, double risk, double maxDailyDD, double maxTotalDD, 
              string startT, string endT, string forceCloseT,
              double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective,bool enableForceClose,
@@ -85,52 +91,41 @@ public:
    }
 
    void OnTick() {
-      // 1. FORCE CLOSE LOGIC
-      if(m_enableForceClose && IsForceCloseTime()){
-         if(!m_isClosedForDay) {
-            CLogger::Log("Force Close Time reached. Executing End-of-Day sequence.");
-            m_tradeMgr.DeleteAllPendingOrders();
-            m_tradeMgr.CloseAllPositions();
-            m_isClosedForDay = true;
-         }
-         return;
+      int userMinutes = GetCurrentUserMinutes();
+
+   // 1. FORCE CLOSE (Basé sur l'heure française ajustée)
+   if(m_enableForceClose && userMinutes >= m_forceCloseMinutes) {
+      if(!m_isClosedForDay) {
+         CLogger::Log("Force Close activé (Heure FR synchronisée)");
+         m_tradeMgr.CloseAllPositions();
+         m_isClosedForDay = true;
       }
-      
-      if(m_isClosedForDay && !IsForceCloseTime()) {
-         CLogger::Log("New Day Detected. Resetting Close Flag.");
-         m_isClosedForDay = false;
-      }
+      return;
+   }
+   
+   if(m_isClosedForDay && userMinutes < m_forceCloseMinutes) m_isClosedForDay = false;
+
+   m_strategy.OnTickStrategy();
 
       if(!m_tradeMgr.IsSpreadSafe(m_maxSpreadPoints) ) {
          return;
       }
-
+   
       // 2. STRATEGY UPDATE
       m_strategy.OnTickStrategy();
-      if (!m_guardian.IsSafeToTrade())
-      {
-         if (PositionsTotal() > 0)
-         {
-            CLogger::Log("DAILY DD REACHED. EMERGENCY CLOSING.");
-            m_tradeMgr.CloseAllPositions();
-            m_tradeMgr.DeleteAllPendingOrders();
-         }
-         return;
-      }
+      if(!m_guardian.IsSafeToTrade()) return;
       ManageBreakeven();
       if(m_useTrailing) ManageTrailing();
 
       // 3. NEW: CHECK DAILY WIN RULE
-      // We only check this if we have NO open positions (looking for new entry)
       if(PositionsTotal() == 0 && m_stopOnObjective) {
          if(m_tradeMgr.HasDailyWin()) {
-            // Optional: Log once per minute to avoid spam, or just return silently
-            // CLogger::Debug("Objective reached (TP/BE). Trading stopped for the day.");
-            return; // <--- STOP HERE. No new trades will be taken.
+            return; 
          }
       }
 
       // 4. ENTRY LOGIC
+      // Note: TimeFilter must be handled using French time to be consistent
       if(!m_timeFilter.IsTradingTime()) return;
       if(PositionsTotal() > 0) return; 
       
@@ -140,12 +135,23 @@ public:
          ExecuteSignal(signal);
       }
    }
-   
-   void OnTimer() {
-      m_guardian.UpdateDailyBalance();
-   }
 
 private:
+
+   // NEW: Helper to convert Broker Server time to French Minutes (CET/CEST)
+   int GetCurrentUserMinutes() {
+      // On demande le décalage exact calculé par la stratégie (incluant le patch 2 semaines)
+      // On cast m_strategy en CStrategyTimeBreakout pour accéder à la fonction
+      CStrategyTimeBreakout* strat = (CStrategyTimeBreakout*)m_strategy;
+      int offset = strat.GetBrokerToUserOffset();
+      
+      datetime adjustedTime = TimeCurrent() - offset;
+      
+      MqlDateTime ad;
+      TimeToStruct(adjustedTime, ad);
+      return (ad.hour * 60) + ad.min;
+   }
+
    void ManageBreakeven() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
@@ -155,7 +161,7 @@ private:
          double currentSL = PositionGetDouble(POSITION_SL);
          double curPrice  = PositionGetDouble(POSITION_PRICE_CURRENT);
          long type        = PositionGetInteger(POSITION_TYPE);
-         
+
          // Logging specific for debugging BE logic
          // (Only logs if DebugMode is true)
          
@@ -165,7 +171,7 @@ private:
             
             double riskDist = openPrice - currentSL;
             double trigger  = openPrice + (riskDist * m_beTriggerRR);
-            
+
             // Check Trigger
             if(curPrice >= trigger) {
                CLogger::Log(StringFormat("BE Triggered (BUY) | Price: %.5f >= Trigger: %.5f | Move SL to %.5f", curPrice, trigger, newSL));
@@ -250,10 +256,10 @@ private:
          if(type == POSITION_TYPE_BUY) {
             // 1. Check if we are in profit enough to start trailing
             if(curPrice - openPrice < m_trailingStart) continue;
-            
+
             // 2. Calculate theoretical SL
             double newSL = curPrice - m_trailingDist;
-            
+
             // 3. Move only if new SL is higher than current SL + Step
             if(newSL > currentSL + m_trailingStep) {
                m_tradeMgr.ModifySL(ticket, newSL);
@@ -263,10 +269,10 @@ private:
          else if(type == POSITION_TYPE_SELL) {
             // 1. Check profit
             if(openPrice - curPrice < m_trailingStart) continue;
-            
+
             // 2. Calculate theoretical SL
             double newSL = curPrice + m_trailingDist;
-            
+
             // 3. Move only if new SL is lower than current SL - Step
             if(currentSL == 0 || newSL < currentSL - m_trailingStep) {
                m_tradeMgr.ModifySL(ticket, newSL);
