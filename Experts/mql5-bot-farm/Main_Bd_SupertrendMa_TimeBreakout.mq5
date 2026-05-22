@@ -7,7 +7,7 @@
 
 //--- INCLUDES
 #include "Core/Engine.mqh"
-#include "Strategies/Strategy_TimeBreakout.mqh"
+#include "Strategies/Strategy_Bd_SupertrendMa_TimeBreakout.mqh"
 //--- INPUTS: GLOBAL RISK
 input group    "--- GLOBAL RISK SETTINGS ---"
 input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
