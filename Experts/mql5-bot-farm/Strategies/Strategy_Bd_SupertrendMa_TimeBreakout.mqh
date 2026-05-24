@@ -147,32 +147,35 @@ public:
 private:
    void CalculateBox() {
       MqlDateTime dt;
-      datetime serverTime = TimeCurrent(dt);
+      TimeCurrent(dt);
       
-      // French Time Sync Logic
-      int brokerOffset = (int)(TimeCurrent() - TimeGMT());
-      int userOffset   = GetUserGMTOffset(serverTime); 
-      int nyOffset     = GetNYGMTOffset(serverTime);   
-      int diffSeconds  = brokerOffset - userOffset;
+      // Convert current time and end time to minutes for comparison
+      int currentMinutesOfDay = (dt.hour * 60) + dt.min;
+      int endMinutesOfDay     = (m_endHour * 60) + m_endMin;
       
-      datetime timeStartDay = serverTime - (serverTime % 86400); 
-      datetime t1 = timeStartDay + (m_startHour * 3600) + (m_startMin * 60) + diffSeconds;
-      datetime t2 = timeStartDay + (m_endHour * 3600) + (m_endMin * 60) + diffSeconds;
-
-      int currentGap = (userOffset - nyOffset) / 3600;
-      if(currentGap != 6) {
-         int adj = (currentGap - 6) * 3600;
-         t1 += adj; t2 += adj;
-      }
-
-      // Check if 15:45 candle just finished
-      if(serverTime >= t2 && dt.day_of_year != m_lastCalculationDay) {
+      // Logic: If we passed the End Time AND haven't calculated for today
+      if(currentMinutesOfDay >= endMinutesOfDay && dt.day_of_year != m_lastCalculationDay) {
+         
+         datetime timeCurrent = TimeCurrent();
+         datetime timeStartDay = timeCurrent - (timeCurrent % 86400); 
+         
+         datetime t1 = timeStartDay + (m_startHour * 3600) + (m_startMin * 60);
+         datetime t2 = timeStartDay + (m_endHour * 3600) + (m_endMin * 60);
+         
+         // Special case: If Start > End (Overnight session like 22:00 to 08:00)
+         if(t1 > t2) t1 -= 86400; // Go back 1 day for start time
+         
+         // Use M1 data for precision (crucial for US30 15min range)
          double highs[], lows[];
-         if(CopyHigh(m_symbol, PERIOD_M1, t1, t2, highs) > 0 && CopyLow(m_symbol, PERIOD_M1, t1, t2, lows) > 0) {
+         if(CopyHigh(m_symbol, PERIOD_M1, t1, t2, highs) > 0 &&
+            CopyLow(m_symbol, PERIOD_M1, t1, t2, lows) > 0) 
+         {
             m_boxHigh = highs[ArrayMaximum(highs)];
             m_boxLow  = lows[ArrayMinimum(lows)];
             m_lastCalculationDay = dt.day_of_year;
+            
             DrawBox(t1, t2, m_boxHigh, m_boxLow);
+            CLogger::Debug(StringFormat("Box Locked: %.2f - %.2f", m_boxHigh, m_boxLow));
          }
       }
    }
