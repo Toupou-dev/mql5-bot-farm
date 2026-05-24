@@ -131,16 +131,19 @@ public:
    //+------------------------------------------------------------------+
    //| Risk Management: Calculate Stop Loss Distance                    |
    //+------------------------------------------------------------------+
-   virtual double GetStopLossDistance() override {
-      // NEW: Robust Stop Loss at the opposite side of the range
-      // This allows the US30 to breathe during initial volatility
-      if(m_boxHigh <= 0 || m_boxLow <= 0) return m_minSLDistance;
-      
-      double boxRange = MathAbs(m_boxHigh - m_boxLow) + m_breakoutOffset;
-      
-      return MathMax(boxRange, m_minSLDistance);
+   virtual double GetStopLossDistance() override
+   {
+      // RULE: SL is at 50% of the Opening Candle (Mid-Box)
+      if (m_boxHigh <= 0 || m_boxLow <= 0)
+         return m_minSLDistance;
+
+      double midBox = (m_boxHigh + m_boxLow) / 2.0;
+      double currentPrice = SymbolInfoDouble(m_symbol, SYMBOL_BID);
+      double dist = MathAbs(currentPrice - midBox);
+
+      return (dist < m_minSLDistance) ? m_minSLDistance : dist;
    }
-   
+
    //+------------------------------------------------------------------+
    //| Risk Management: Calculate Take Profit Distance                  |
    //+------------------------------------------------------------------+
