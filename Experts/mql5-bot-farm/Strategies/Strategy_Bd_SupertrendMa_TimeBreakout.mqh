@@ -9,8 +9,8 @@
 class CStrategyTimeBreakout : public CStrategyBase {
 private:
    //--- Settings
-   int      m_startHour, m_startMin; // 15:30
-   int      m_endHour, m_endMin;     // 15:45
+   int      m_startHour, m_startMin; // 15:30 (Server Time)
+   int      m_endHour,   m_endMin;   // 15:45 (Server Time)
    double   m_breakoutOffset;
    int      m_emaFastPeriod, m_emaSlowPeriod;
    int      m_stPeriod;
@@ -50,17 +50,29 @@ public:
       ArraySetAsSeries(m_stBuffer, true);
    }
 
+   //+------------------------------------------------------------------+
+   //| Destructor: Cleans up graphical objects from the chart           |
+   //+------------------------------------------------------------------+
    ~CStrategyTimeBreakout() { ObjectsDeleteAll(0, "Box_"); }
+   // Remove all rectangles drawn by this strategy
 
+   //+------------------------------------------------------------------+
+   //| Initialization: Create Indicator Handles                         |
+   //+------------------------------------------------------------------+
    virtual bool OnInitStrategy() override {
+      // EMA Filters on M5 Timeframe
       m_handleEMA20_M5 = iMA(m_symbol, PERIOD_M5, m_emaFastPeriod, 0, MODE_EMA, PRICE_CLOSE);
       m_handleEMA50_M5 = iMA(m_symbol, PERIOD_M5, m_emaSlowPeriod, 0, MODE_EMA, PRICE_CLOSE);
-      // Ensure the name matches your compiled SuperTrend file name
+      
+      // SuperTrend Filter on H1 Timeframe
       m_handleST_H1    = iCustom(m_symbol, PERIOD_H1, "Examples\\supertrend", m_stPeriod, m_stMultiplier);
       
       return (m_handleEMA20_M5 != INVALID_HANDLE && m_handleEMA50_M5 != INVALID_HANDLE && m_handleST_H1 != INVALID_HANDLE);
    }
    
+   //+------------------------------------------------------------------+
+   //| Main Update Loop (Called every tick)                             |
+   //+------------------------------------------------------------------+
    virtual void OnTickStrategy() override {
       MqlDateTime dt;
       TimeCurrent(dt);
@@ -70,6 +82,7 @@ public:
          m_isTradeTakenToday = false;
       }
 
+      // Update data buffers
       CopyBuffer(m_handleEMA20_M5, 0, 0, 1, m_ema20Buffer);
       CopyBuffer(m_handleEMA50_M5, 0, 0, 1, m_ema50Buffer);
       CopyBuffer(m_handleST_H1, 0, 0, 1, m_stBuffer);
@@ -77,6 +90,9 @@ public:
       CalculateBox();
    }
    
+   //+------------------------------------------------------------------+
+   //| Entry Logic: Check for Breakout                                  |
+   //+------------------------------------------------------------------+
    virtual int GetEntrySignal() override {
       // 1. Safety checks: Box must be formed and only 1 trade per day
       if(m_boxHigh <= 0 || m_isTradeTakenToday) return 0;
@@ -89,7 +105,7 @@ public:
       bool emaBullish = m_ema20Buffer[0] > m_ema50Buffer[0];
       bool emaBearish = m_ema20Buffer[0] < m_ema50Buffer[0];
       
-      // SuperTrend Filter (Buffer 0 is usually the trend line)
+      // SuperTrend Filter (Checking current price vs SuperTrend line)
       bool stBullish = currentBid > m_stBuffer[0];
       bool stBearish = currentAsk < m_stBuffer[0];
 
@@ -112,44 +128,35 @@ public:
       return 0;
    }
    
+   //+------------------------------------------------------------------+
+   //| Risk Management: Calculate Stop Loss Distance                    |
+   //+------------------------------------------------------------------+
    virtual double GetStopLossDistance() override {
-      // RULE: SL is at 50% of the Opening Candle (Mid-Box)
+      // NEW: Robust Stop Loss at the opposite side of the range
+      // This allows the US30 to breathe during initial volatility
       if(m_boxHigh <= 0 || m_boxLow <= 0) return m_minSLDistance;
       
-      double midBox = (m_boxHigh + m_boxLow) / 2.0;
-      double currentPrice = SymbolInfoDouble(m_symbol, SYMBOL_BID);
-      double dist = MathAbs(currentPrice - midBox);
+      double boxRange = MathAbs(m_boxHigh - m_boxLow) + m_breakoutOffset;
       
-      return (dist < m_minSLDistance) ? m_minSLDistance : dist;
+      return MathMax(boxRange, m_minSLDistance);
    }
    
+   //+------------------------------------------------------------------+
+   //| Risk Management: Calculate Take Profit Distance                  |
+   //+------------------------------------------------------------------+
    virtual double GetTakeProfitDistance(double slDistance) override {
       return slDistance * m_riskRewardRatio;
    }
 
-   int GetBrokerToUserOffset() {
-      datetime serverTime = TimeCurrent();
-      int brokerOffset = (int)(serverTime - TimeGMT());
-      int userOffset   = GetUserGMTOffset(serverTime); // France
-      int nyOffset     = GetNYGMTOffset(serverTime);   // New York
-      
-      int diffSeconds = brokerOffset - userOffset;
-
-      // Ajustement spécial US30 (les 2-3 semaines de décalage)
-      int currentGap = (userOffset - nyOffset) / 3600;
-      if(currentGap != 6) {
-         int adjustment = (currentGap - 6) * 3600;
-         diffSeconds -= adjustment; // On synchronise le décalage
-      }
-      return diffSeconds;
-   }
-
 private:
+   //+------------------------------------------------------------------+
+   //| Helper: Identify High/Low of the Opening Session                 |
+   //+------------------------------------------------------------------+
    void CalculateBox() {
       MqlDateTime dt;
       TimeCurrent(dt);
       
-      // Convert current time and end time to minutes for comparison
+      // Use direct Server Time for calculations (Optimization friendly)
       int currentMinutesOfDay = (dt.hour * 60) + dt.min;
       int endMinutesOfDay     = (m_endHour * 60) + m_endMin;
       
@@ -175,40 +182,18 @@ private:
             m_lastCalculationDay = dt.day_of_year;
             
             DrawBox(t1, t2, m_boxHigh, m_boxLow);
-            CLogger::Debug(StringFormat("Box Locked: %.2f - %.2f", m_boxHigh, m_boxLow));
+            CLogger::Debug(StringFormat("US30 Box Locked: %.2f - %.2f", m_boxHigh, m_boxLow));
          }
       }
    }
-
-   int GetUserGMTOffset(datetime t) {
-      MqlDateTime dt; TimeToStruct(t, dt);
-      datetime march31 = StringToTime(IntegerToString(dt.year)+".03.31");
-      datetime dstStart = march31 - (((dt.day_of_week == 0 ? 7 : dt.day_of_week) % 7) * 86400);
-      datetime oct31 = StringToTime(IntegerToString(dt.year)+".10.31");
-      datetime dstEnd = oct31 - (((dt.day_of_week == 0 ? 7 : dt.day_of_week) % 7) * 86400);
-      return (t >= dstStart && t < dstEnd) ? 7200 : 3600;
-   }
-
-   int GetNYGMTOffset(datetime t) {
-      MqlDateTime dt; TimeToStruct(t, dt);
-      datetime march1 = StringToTime(IntegerToString(dt.year)+".03.01");
-      MqlDateTime m1; TimeToStruct(march1, m1);
-      int secondSunMarch = (m1.day_of_week == 0) ? 8 : (7 - m1.day_of_week + 8);
-      datetime dstStart = march1 + (secondSunMarch * 86400);
-      datetime nov1 = StringToTime(IntegerToString(dt.year)+".11.01");
-      MqlDateTime n1; TimeToStruct(nov1, n1);
-      int firstSunNov = (n1.day_of_week == 0) ? 1 : (7 - n1.day_of_week + 1);
-      datetime dstEnd = nov1 + (firstSunNov * 86400);
-      return (t >= dstStart && t < dstEnd) ? -14400 : -18000;
-   }
-
+   
    void DrawBox(datetime t1, datetime t2, double h, double l) {
       string n = "Box_" + TimeToString(t1);
       ObjectDelete(0, n);
       if(ObjectCreate(0, n, OBJ_RECTANGLE, 0, t1, h, t2, l)) {
          ObjectSetInteger(0, n, OBJPROP_COLOR, clrOrange);
          ObjectSetInteger(0, n, OBJPROP_STYLE, STYLE_SOLID);
-         ObjectSetInteger(0, n, OBJPROP_WIDTH, 2);
+         ObjectSetInteger(0, n, OBJPROP_WIDTH, 1);
          ObjectSetInteger(0, n, OBJPROP_BACK, true);
          ChartRedraw(0);
       }

@@ -91,10 +91,10 @@ public:
    }
 
    void OnTick() {
-      int userMinutes = GetCurrentUserMinutes();
+      int currentMinutes = GetCurrentServerMinutes();
 
    // 1. FORCE CLOSE (Basé sur l'heure française ajustée)
-   if(m_enableForceClose && userMinutes >= m_forceCloseMinutes) {
+   if(m_enableForceClose && currentMinutes >= m_forceCloseMinutes) {
       if(!m_isClosedForDay) {
          CLogger::Log("Force Close activé (Heure FR synchronisée)");
          m_tradeMgr.CloseAllPositions();
@@ -103,7 +103,7 @@ public:
       return;
    }
    
-   if(m_isClosedForDay && userMinutes < m_forceCloseMinutes) m_isClosedForDay = false;
+   if(m_isClosedForDay && currentMinutes < m_forceCloseMinutes) m_isClosedForDay = false;
 
    m_strategy.OnTickStrategy();
 
@@ -138,18 +138,10 @@ public:
 
 private:
 
-   // NEW: Helper to convert Broker Server time to French Minutes (CET/CEST)
-   int GetCurrentUserMinutes() {
-      // On demande le décalage exact calculé par la stratégie (incluant le patch 2 semaines)
-      // On cast m_strategy en CStrategyTimeBreakout pour accéder à la fonction
-      CStrategyTimeBreakout* strat = (CStrategyTimeBreakout*)m_strategy;
-      int offset = strat.GetBrokerToUserOffset();
-      
-      datetime adjustedTime = TimeCurrent() - offset;
-      
-      MqlDateTime ad;
-      TimeToStruct(adjustedTime, ad);
-      return (ad.hour * 60) + ad.min;
+   int GetCurrentServerMinutes() {
+      MqlDateTime dt;
+      TimeCurrent(dt);
+      return (dt.hour * 60) + dt.min;
    }
 
    void ManageBreakeven() {
