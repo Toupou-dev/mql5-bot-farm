@@ -12,16 +12,17 @@
 input group    "--- GLOBAL RISK SETTINGS ---"
 input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
 input double   Inp_MaxDailyDD      = 1.5;      // Max Daily Loss
-input double   Inp_MaxTotalDD      = 9.5;      
+input double   Inp_MaxTotalDD      = 9.5;      // Max Daily Loss
 input bool     Inp_StopOnObjective = true;     // US30 is volatile, 1 good trade is enough
 
-//--- INPUTS: STRATEGY BOX TIME (NY OPEN)
+//--- INPUTS: STRATEGY BOX TIME (Local session)
 input group    "--- STRATEGY BOX TIME ---"
 input int      Inp_MagicNumber     = 3030;     // Magic Number
-input int      Inp_BoxStart_Hour   = 15;       // Starting box hour (15h)
-input int      Inp_BoxStart_Min    = 30;       // Starting box min (30)
-input int      Inp_BoxEnd_Hour     = 15;       // Ending box hour (15h)
-input int      Inp_BoxEnd_Min      = 45;       // Ending box min (45) -> Range of 15 min
+input string   Inp_TimeZone        = "HK";     // Time Zone for the local session
+input int      Inp_BoxStart_Hour   = 9;        // Starting box hour in local zone
+input int      Inp_BoxStart_Min    = 0;        // Starting box minute in local zone
+input int      Inp_BoxEnd_Hour     = 9;        // Ending box hour in local zone
+input int      Inp_BoxEnd_Min      = 15;       // Ending box minute in local zone
 input int      Inp_TrendMA         = 50;       // Trend Filter (Shorter for indices)
 
 //--- INPUTS: FINE TUNING (ADAPTÉ INDICES)
@@ -58,6 +59,7 @@ int OnInit() {
    // Création de la stratégie avec les heures/minutes spécifiques US30
    CStrategyBase* strategy = new CStrategyTimeBreakout(
       _Symbol, Period(), 
+      Inp_TimeZone,
       Inp_BoxStart_Hour, Inp_BoxStart_Min, 
       Inp_BoxEnd_Hour,   Inp_BoxEnd_Min,   
       Inp_Offset_Points,

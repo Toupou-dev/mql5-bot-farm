@@ -5,10 +5,12 @@
 //+------------------------------------------------------------------+
 #include "StrategyBase.mqh"
 #include "../Utils/Logger.mqh"
+#include "../Utils/TimeZone.mqh"
 
 class CStrategyTimeBreakout : public CStrategyBase {
 private:
-   //--- Time Settings (Now with Minutes!)
+   //--- Time Settings (Now with Minutes + Time Zone)
+   string   m_timeZone;
    int      m_startHour, m_startMin;
    int      m_endHour, m_endMin;
    
@@ -24,20 +26,22 @@ private:
    
    //--- State
    double   m_boxHigh, m_boxLow;
-   int      m_lastCalculationDay;
+   int      m_lastCalculationLocalDay;
    
    //--- Indicators
    int      m_handleATR, m_handleMA;
    double   m_maBuffer[], m_atrBuffer[], m_closeBuffer[];
 
 public:
-   // Constructor accepts Minutes now
-   CStrategyTimeBreakout(string symbol, int period, 
-                         int startH, int startM, int endH, int endM, 
-                         double offset, int trendMa, 
+   // Constructor accepts local session times in a named time zone
+   CStrategyTimeBreakout(string symbol, int period,
+                         string timeZone,
+                         int startH, int startM, int endH, int endM,
+                         double offset, int trendMa,
                          int atrPer, double atrMult, double rrRatio, int minSL)
       : CStrategyBase(symbol, period) {
       
+      m_timeZone = timeZone;
       m_startHour = startH; m_startMin = startM;
       m_endHour   = endH;   m_endMin   = endM;
       
@@ -49,7 +53,7 @@ public:
       m_minSLDistance   = minSL * SymbolInfoDouble(symbol, SYMBOL_POINT);
       
       m_boxHigh = 0; m_boxLow = 0;
-      m_lastCalculationDay = -1;
+      m_lastCalculationLocalDay = -1;
       
       ArraySetAsSeries(m_maBuffer, true);
       ArraySetAsSeries(m_atrBuffer, true);
@@ -65,6 +69,10 @@ public:
    //| Initialization: Create Indicator Handles                         |
    //+------------------------------------------------------------------+
    virtual bool OnInitStrategy() override {
+      if (!CTimeZone::IsValid(m_timeZone)) {
+         CLogger::Error("TimeBreakout: Invalid time zone specified: " + m_timeZone);
+         return false;
+      }
       m_handleATR = iATR(m_symbol, (ENUM_TIMEFRAMES)m_period, m_atrPeriod);
       m_handleMA  = iMA(m_symbol, (ENUM_TIMEFRAMES)m_period, m_trendMaPeriod, 0, MODE_EMA, PRICE_CLOSE);
       if(m_handleATR == INVALID_HANDLE || m_handleMA == INVALID_HANDLE) {
@@ -136,41 +144,90 @@ public:
 
 private:
    //+------------------------------------------------------------------+
-   //| Helper: Identify High/Low of the Asian Session                   |
+   //| Helper: Identify High/Low of the Session                   |
    //+------------------------------------------------------------------+
    void CalculateBox() {
-      MqlDateTime dt;
-      TimeCurrent(dt);
-      
-      // Convert current time and end time to minutes for comparison
-      int currentMinutesOfDay = (dt.hour * 60) + dt.min;
-      int endMinutesOfDay     = (m_endHour * 60) + m_endMin;
-      
-      // Logic: If we passed the End Time AND haven't calculated for today
-      if(currentMinutesOfDay >= endMinutesOfDay && dt.day_of_year != m_lastCalculationDay) {
-         
-         datetime timeCurrent = TimeCurrent();
-         datetime timeStartDay = timeCurrent - (timeCurrent % 86400); 
-         
-         datetime t1 = timeStartDay + (m_startHour * 3600) + (m_startMin * 60);
-         datetime t2 = timeStartDay + (m_endHour * 3600) + (m_endMin * 60);
-         
-         // Special case: If Start > End (Overnight session like 22:00 to 08:00)
-         if(t1 > t2) t1 -= 86400; // Go back 1 day for start time
-         
-         // Use M1 data for precision (crucial for US30 15min range)
-         double highs[], lows[];
-         if(CopyHigh(m_symbol, PERIOD_M1, t1, t2, highs) > 0 &&
-            CopyLow(m_symbol, PERIOD_M1, t1, t2, lows) > 0) 
-         {
-            m_boxHigh = highs[ArrayMaximum(highs)];
-            m_boxLow  = lows[ArrayMinimum(lows)];
-            m_lastCalculationDay = dt.day_of_year;
-            
-            DrawBox(t1, t2, m_boxHigh, m_boxLow);
-            CLogger::Debug(StringFormat("Box Locked: %.2f - %.2f", m_boxHigh, m_boxLow));
-         }
+      MqlDateTime localNow;
+      if (!GetCurrentLocalTime(localNow))
+         return;
+
+      int currentLocalMinutes = (localNow.hour * 60) + localNow.min;
+      int localDayKey         = (localNow.year * 1000) + localNow.day_of_year;
+
+      if (localDayKey == m_lastCalculationLocalDay)
+         return;
+
+      if (!HasLocalSessionEnded(currentLocalMinutes))
+         return;
+
+      MqlDateTime sessionStart = localNow;
+      MqlDateTime sessionEnd   = localNow;
+      sessionStart.hour = m_startHour;
+      sessionStart.min  = m_startMin;
+      sessionStart.sec  = 0;
+      sessionEnd.hour   = m_endHour;
+      sessionEnd.min    = m_endMin;
+      sessionEnd.sec    = 0;
+
+      int startLocalMinutes = (m_startHour * 60) + m_startMin;
+      int endLocalMinutes   = (m_endHour * 60) + m_endMin;
+      if (startLocalMinutes > endLocalMinutes) {
+         datetime utcNow = TimeGMT();
+         int localOffset = CTimeZone::GetOffsetMinutesFromUtc(m_timeZone, utcNow);
+         if (localOffset == INT_MAX)
+            return;
+
+         datetime localYesterday = utcNow + localOffset * 60 - 86400;
+         MqlDateTime previousDay;
+         CTimeZone::UnixToDateTime(localYesterday, previousDay);
+         sessionStart.year = previousDay.year;
+         sessionStart.mon  = previousDay.mon;
+         sessionStart.day  = previousDay.day;
       }
+
+      datetime t1 = ConvertLocalToServer(sessionStart);
+      datetime t2 = ConvertLocalToServer(sessionEnd);
+
+      double highs[], lows[];
+      if (CopyHigh(m_symbol, PERIOD_M1, t1, t2, highs) > 0 &&
+          CopyLow(m_symbol, PERIOD_M1, t1, t2, lows) > 0) {
+         m_boxHigh = highs[ArrayMaximum(highs)];
+         m_boxLow  = lows[ArrayMinimum(lows)];
+         m_lastCalculationLocalDay = localDayKey;
+
+         DrawBox(t1, t2, m_boxHigh, m_boxLow);
+         CLogger::Debug(StringFormat("Box Locked [%s]: %.2f - %.2f", m_timeZone, m_boxHigh, m_boxLow));
+      }
+   }
+
+   bool GetCurrentLocalTime(MqlDateTime &localTime) {
+      datetime utcNow = TimeGMT();
+      int localOffset = CTimeZone::GetOffsetMinutesFromUtc(m_timeZone, utcNow);
+      if (localOffset == INT_MAX)
+         return false;
+
+      datetime localStamp = utcNow + localOffset * 60;
+      CTimeZone::UnixToDateTime(localStamp, localTime);
+      return true;
+   }
+
+   bool HasLocalSessionEnded(int currentLocalMinutes) {
+      int startLocalMinutes = (m_startHour * 60) + m_startMin;
+      int endLocalMinutes   = (m_endHour * 60) + m_endMin;
+      if (startLocalMinutes <= endLocalMinutes)
+         return currentLocalMinutes >= endLocalMinutes;
+
+      // Overnight session: end occurs on the next local day.
+      if (currentLocalMinutes < startLocalMinutes)
+         return currentLocalMinutes >= endLocalMinutes;
+      return false;
+   }
+
+   datetime ConvertLocalToServer(const MqlDateTime &localDateTime) {
+      int localOffset = CTimeZone::GetOffsetMinutes(m_timeZone, localDateTime);
+      int serverOffset = (int)((TimeCurrent() - TimeGMT()) / 60);
+      datetime serverStamp = StructToTime(localDateTime);
+      return serverStamp - ((localOffset - serverOffset) * 60);
    }
    
    void DrawBox(datetime t1, datetime t2, double h, double l) {
