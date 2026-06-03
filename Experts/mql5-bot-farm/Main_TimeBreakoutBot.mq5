@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                              Main_US30Bot.mq5    |
+//|                                      Main_TimeBreakoutBot.mq5    |
 //|                                      Copyright 2026, Expert MQL5 |
 //+------------------------------------------------------------------+
 #property copyright "Expert MQL5"
@@ -12,7 +12,7 @@
 input group    "--- GLOBAL RISK SETTINGS ---"
 input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
 input double   Inp_MaxDailyDD      = 1.5;      // Max Daily Loss
-input double   Inp_MaxTotalDD      = 9.5;      // Max Daily Loss
+input double   Inp_MaxTotalDD      = 9.9;      // Max Loss Overall
 input bool     Inp_StopOnObjective = true;     // US30 is volatile, 1 good trade is enough
 
 //--- INPUTS: STRATEGY BOX TIME (Local session)
