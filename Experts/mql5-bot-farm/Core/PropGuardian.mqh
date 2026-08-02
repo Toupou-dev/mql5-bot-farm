@@ -20,14 +20,37 @@ public:
       UpdateDailyBalance(); 
    }
 
-   void UpdateDailyBalance() {
-      m_dailyStartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
-      CLogger::Log("[GUARDIAN] Daily Balance Reset -> " + DoubleToString(m_dailyStartBalance, 2));
+   void UpdateDailyBalance()
+   {
+      double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+
+      if (balance <= 0.0)
+      {
+         CLogger::Error("[GUARDIAN] Invalid account balance (0). Daily reset aborted.");
+         return;
+      }
+
+      m_dailyStartBalance = balance;
+
+      CLogger::Log(
+          "[GUARDIAN] Daily Balance Reset -> " + DoubleToString(m_dailyStartBalance, 2));
    }
 
-   bool IsSafeToTrade() {
-      double currentEquity  = AccountInfoDouble(ACCOUNT_EQUITY);
-      
+   bool IsSafeToTrade()
+   {
+      if (m_dailyStartBalance <= 0.0)
+      {
+         UpdateDailyBalance();
+
+         if (m_dailyStartBalance <= 0.0)
+         {
+            CLogger::Error("[GUARDIAN] Unable to initialize daily balance.");
+            return false;
+         }
+      }
+
+      double currentEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+
       // Calculate Drawdowns
       double dailyDrop = (m_dailyStartBalance - currentEquity) / m_dailyStartBalance * 100.0;
       double totalDrop = (m_initialAccountBalance - currentEquity) / m_initialAccountBalance * 100.0;

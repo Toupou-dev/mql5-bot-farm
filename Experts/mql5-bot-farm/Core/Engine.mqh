@@ -1,6 +1,7 @@
 //+------------------------------------------------------------------+
 //|                                                       Engine.mqh |
 //|                                      Copyright 2025, Expert MQL5 |
+
 //+------------------------------------------------------------------+
 #include "PropGuardian.mqh"
 #include "TradeManager.mqh"
@@ -34,6 +35,10 @@ private:
    double m_trailingStep;     // Update SL every X points
    int m_maxSpreadPoints;     // Max allowed spread in points
 
+   // NEW: Calendar Filters
+   bool   m_allowedMonths[13]; 
+   bool   m_allowedDays[7];    
+
 public:
    CEngine() {}
    
@@ -53,8 +58,9 @@ public:
 
    void Init(CStrategyBase* strategy, int magic, double risk, double maxDailyDD, double maxTotalDD, 
              string startT, string endT, string forceCloseT,
-             double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective,bool enableForceClose,
-             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints, int maxSpread)
+             double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective, bool enableForceClose,
+             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints, int maxSpread,
+             string skipMonths, string skipDays) // Parameters added
    { 
       // Set Global Logger Debug Mode
       CLogger::SetDebugMode(debugMode);
@@ -71,41 +77,45 @@ public:
       
       m_forceCloseMinutes = TimeStringToMinutes(forceCloseT);
       m_isClosedForDay    = false;
+      m_stopOnObjective   = stopOnObjective;
+      m_enableForceClose  = enableForceClose;
+      m_maxSpreadPoints   = maxSpread;
+      m_useTrailing       = useTrailing;
+      m_trailingStart     = trailStartPoints * Point();
+      m_trailingDist      = trailDistPoints  * Point();
+      m_trailingStep      = trailStepPoints  * Point();
 
-      m_stopOnObjective = stopOnObjective;
+      // Initialize Calendar Filters
+      for(int i=0; i<13; i++) m_allowedMonths[i] = true;
+      for(int i=0; i<7; i++)  m_allowedDays[i] = true;
 
-      m_enableForceClose = enableForceClose;
-
-      m_maxSpreadPoints = maxSpread;
-      
-      m_useTrailing   = useTrailing;
-      m_trailingStart = trailStartPoints * Point();
-      m_trailingDist  = trailDistPoints  * Point();
-      m_trailingStep  = trailStepPoints  * Point();
+      ParseCalendarFilter(skipMonths, m_allowedMonths, 13);
+      ParseCalendarFilter(skipDays, m_allowedDays, 7);
       
       if(!m_strategy.OnInitStrategy()) {
          CLogger::Error("Strategy Initialization Failed!");
-      } else {
+         } else {
          CLogger::Log("Engine Initialized. Waiting for ticks...");
       }
    }
 
    void OnTick() {
+      // 1. CALENDAR FILTER
+      if(!IsCalendarAllowed()) return;
+
       int currentMinutes = GetCurrentServerMinutes();
 
-   // 1. FORCE CLOSE (Basé sur l'heure française ajustée)
-   if(m_enableForceClose && currentMinutes >= m_forceCloseMinutes) {
-      if(!m_isClosedForDay) {
-         CLogger::Log("Force Close activé (Heure FR synchronisée)");
-         m_tradeMgr.CloseAllPositions();
-         m_isClosedForDay = true;
+      // 2. FORCE CLOSE LOGIC
+      if(m_enableForceClose && currentMinutes >= m_forceCloseMinutes){
+         if(!m_isClosedForDay) {
+            CLogger::Log("Force Close reached.");
+            m_tradeMgr.CloseAllPositions();
+            m_isClosedForDay = true;
+         }
+         return;
       }
-      return;
-   }
-   
-   if(m_isClosedForDay && currentMinutes < m_forceCloseMinutes) m_isClosedForDay = false;
-
-   m_strategy.OnTickStrategy();
+      
+      if(m_isClosedForDay && currentMinutes < m_forceCloseMinutes) m_isClosedForDay = false;
 
       if(!m_tradeMgr.IsSpreadSafe(m_maxSpreadPoints) ) {
          return;
@@ -120,7 +130,9 @@ public:
       // 3. NEW: CHECK DAILY WIN RULE
       if(PositionsTotal() == 0 && m_stopOnObjective) {
          if(m_tradeMgr.HasDailyWin()) {
-            return; 
+            // Optional: Log once per minute to avoid spam, or just return silently
+            CLogger::Debug("Objective reached (TP/BE). Trading stopped for the day.");
+            return; // <--- STOP HERE. No new trades will be taken.
          }
       }
 
@@ -137,13 +149,39 @@ public:
    }
 
 private:
+   // FIX: Added proper dt initialization and structurally sound calendar check
+   bool IsCalendarAllowed() {
+      MqlDateTime dt;
+      TimeCurrent(dt); // Properly initializes the structure with current time
+
+      if(!m_allowedMonths[dt.mon]) return false;
+      if(!m_allowedDays[dt.day_of_week]) return false;
+
+      return true;
+   }
+
+   // FIX: Corrected StringSplit syntax and removed 'input' reserved word
+   void ParseCalendarFilter(string filterStr, bool &array[], int maxIdx) {
+      if(filterStr == "") return;
+      
+      string result[];
+      // MQL5 syntax: (string_to_split, ushort_separator, result_array)
+      int count = StringSplit(filterStr, (ushort)',', result);
+
+      for(int i=0; i<count; i++) {
+         int val = (int)StringToInteger(result[i]);
+         if(val >= 0 && val < maxIdx) {
+            array[val] = false; 
+         }
+      }
+   }
 
    int GetCurrentServerMinutes() {
       MqlDateTime dt;
       TimeCurrent(dt);
       return (dt.hour * 60) + dt.min;
    }
-
+ 
    void ManageBreakeven() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);
