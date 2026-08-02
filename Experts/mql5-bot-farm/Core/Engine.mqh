@@ -136,10 +136,15 @@ public:
       if(m_useTrailing) ManageTrailing();
 
       if(PositionsTotal() == 0 && m_stopOnObjective) {
-         if(m_tradeMgr.HasDailyWin()) return;
+         if(m_tradeMgr.HasDailyWin()) {
+            // Optional: Log once per minute to avoid spam, or just return silently
+            CLogger::Debug("Objective reached (TP/BE). Trading stopped for the day.");
+            return; // <--- STOP HERE. No new trades will be taken.
+         }
       }
 
-      if(!m_timeFilter.IsTradingTime()) return; 
+      // 4. ENTRY LOGIC
+      if(!m_timeFilter.IsTradingTime()) return;
       if(PositionsTotal() > 0) return; 
       
       int signal = m_strategy.GetEntrySignal();
