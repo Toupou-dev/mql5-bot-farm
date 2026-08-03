@@ -14,6 +14,8 @@ input double   Inp_RiskPercent     = 0.5;      // Risk per Trade %
 input double   Inp_MaxDailyDD      = 1.5;      // Max Daily Loss
 input double   Inp_MaxTotalDD      = 9.9;      // Max Loss Overall
 input bool     Inp_StopOnObjective = true;     // US30 is volatile, 1 good trade is enough
+input string   Inp_SkipMonths = "";            // Skip Months (Comma-separated, 0-12, 0=Jan, 12=Dec)
+input string   Inp_SkipDays   = "";            // Skip Days (Comma-separated, 0-6, 0=Sunday, 6=Saturday)
 
 //--- INPUTS: STRATEGY BOX TIME (Local session)
 input group    "--- STRATEGY BOX TIME ---"
@@ -82,6 +84,8 @@ int OnInit() {
                Inp_BE_Offset_Points,
                Inp_DebugMode,
                Inp_StopOnObjective,
+               Inp_SkipMonths,
+               Inp_SkipDays,
                Inp_EnableHardClose,
                Inp_UseTrailing,
                Inp_Trail_Start,

@@ -36,8 +36,8 @@ private:
    int m_maxSpreadPoints;     // Max allowed spread in points
 
    // NEW: Calendar Filters
-   bool   m_allowedMonths[13]; 
-   bool   m_allowedDays[7];    
+   bool m_allowedMonths[13];
+   bool m_allowedDays[7];
 
 public:
    CEngine() {}
@@ -55,12 +55,28 @@ public:
          m_guardian.UpdateDailyBalance();
    }
 
-   void Init(CStrategyBase* strategy, int magic, double risk, double maxDailyDD, double maxTotalDD, 
-             string startT, string endT, string forceCloseT,
-             double beTriggerRR, int beOffsetPoints, bool debugMode, bool stopOnObjective, bool enableForceClose,
-             bool useTrailing, int trailStartPoints, int trailDistPoints, int trailStepPoints, int maxSpread,
-             string skipMonths, string skipDays) // Parameters added
-   { 
+   void Init(
+       CStrategyBase *strategy,
+       int magic,
+       double risk,
+       double maxDailyDD,
+       double maxTotalDD,
+       string startT,
+       string endT,
+       string forceCloseT,
+       double beTriggerRR,
+       int beOffsetPoints,
+       bool debugMode,
+       bool stopOnObjective,
+       string skipMonths,
+       string skipDays,
+       bool enableForceClose,
+       bool useTrailing,
+       int trailStartPoints,
+       int trailDistPoints,
+       int trailStepPoints,
+       int maxSpread) // Parameters added
+   {
       // Set Global Logger Debug Mode
       CLogger::SetDebugMode(debugMode);
       
@@ -182,10 +198,13 @@ private:
       }
    }
 
-   int GetCurrentServerMinutes() {
+   int GetCurrentServerMinutes()
+   {
       MqlDateTime dt;
       TimeCurrent(dt);
- 
+      return dt.hour * 60 + dt.min;
+   }
+   
    void ManageBreakeven() {
       for(int i = PositionsTotal() - 1; i >= 0; i--) {
          ulong ticket = PositionGetTicket(i);

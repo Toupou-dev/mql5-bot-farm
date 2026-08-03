@@ -223,13 +223,17 @@ private:
       return false;
    }
 
-   datetime ConvertLocalToServer(const MqlDateTime &localDateTime) {
+   datetime ConvertLocalToServer(const MqlDateTime &localDateTime)
+   {
       int localOffset = CTimeZone::GetOffsetMinutes(m_timeZone, localDateTime);
       int serverOffset = (int)((TimeCurrent() - TimeGMT()) / 60);
-      datetime serverStamp = StructToTime(localDateTime);
+
+      MqlDateTime dt = localDateTime; // copy to modify
+      datetime serverStamp = StructToTime(dt);
+
       return serverStamp - ((localOffset - serverOffset) * 60);
    }
-   
+
    void DrawBox(datetime t1, datetime t2, double h, double l) {
       string n = "Box_" + TimeToString(t1);
       if(ObjectCreate(0, n, OBJ_RECTANGLE, 0, t1, h, t2, l)) {
